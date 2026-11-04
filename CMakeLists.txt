@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(nurseryledger
     src/main.cpp
     src/Date.cpp
+    src/Ledger.cpp
 )
 
 target_include_directories(nurseryledger PRIVATE include)
@@ -20,10 +21,20 @@ target_compile_options(nurseryledger PRIVATE
 enable_testing()
 
 add_executable(test_date
-    tests/test_date.cpp
-    src/Date.cpp
+     tests/test_date.cpp
+     src/Date.cpp
 )
 
 target_include_directories(test_date PRIVATE include)
 
 add_test(NAME DateValidation COMMAND test_date)
+
+add_executable(test_ledger
+    tests/test_ledger.cpp
+    src/Ledger.cpp
+    src/Date.cpp
+)
+
+target_include_directories(test_ledger PRIVATE include)
+
+add_test(NAME LedgerRegistration COMMAND test_ledger)
