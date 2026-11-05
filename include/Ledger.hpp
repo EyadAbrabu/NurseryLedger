@@ -27,6 +27,12 @@ public:
     const std::vector<Payment>& getPayments() const;
 
 
+    std::int64_t getOutstandingBalance(
+    int childId,
+    int year,
+    int month
+) const;
+
 };
 
 #endif

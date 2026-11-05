@@ -41,5 +41,23 @@ int main() {
     assert(payments[0].amountCents == 10000);
     assert(payments[0].childId == 101);
 
+
+    // Partial payment: 150 euros due, 100 euros paid
+assert(ledger.getOutstandingBalance(101, 2026, 11) == 5000);
+
+// Second valid payment completes the obligation
+Payment remainingPayment{
+    101,
+    {2026, 11, 25},
+    5000,
+    PaymentMethod::BankTransfer,
+    2026,
+    11
+};
+
+assert(ledger.recordPayment(remainingPayment));
+assert(ledger.getOutstandingBalance(101, 2026, 11) == 0);
+
+
     return 0;
 }

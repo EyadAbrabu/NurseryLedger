@@ -134,3 +134,33 @@ bool Ledger::recordPayment(const Payment& payment) {
 const std::vector<Payment>& Ledger::getPayments() const {
     return payments;
 }
+
+
+std::int64_t Ledger::getOutstandingBalance(
+    int childId,
+    int year,
+    int month
+) const {
+    std::int64_t amountDue = 0;
+    std::int64_t amountPaid = 0;
+
+    for (const FeeObligation& obligation : obligations) {
+        if (obligation.childId == childId &&
+            obligation.billingYear == year &&
+            obligation.billingMonth == month) {
+            amountDue += obligation.amountCents;
+        }
+    }
+
+    for (const Payment& payment : payments) {
+        if (payment.childId == childId &&
+            payment.billingYear == year &&
+            payment.billingMonth == month) {
+            amountPaid += payment.amountCents;
+        }
+    }
+
+    return amountDue > amountPaid
+        ? amountDue - amountPaid
+        : 0;
+}
