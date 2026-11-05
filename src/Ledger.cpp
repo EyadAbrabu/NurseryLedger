@@ -1,5 +1,75 @@
 #include "Ledger.hpp"
 #include "FeeObligation.hpp"
+#include <algorithm>
+#include <map>
+#include <utility>
+
+namespace {
+
+using Period = std::pair<int, int>;
+
+struct AllocationResult {
+    std::map<Period, std::int64_t> outstanding;
+    std::int64_t availableCredit = 0;
+};
+
+AllocationResult calculateAllocation(
+    int childId,
+    const std::vector<FeeObligation>& obligations,
+    const std::vector<Payment>& payments
+) {
+    AllocationResult result;
+
+    std::map<Period, std::int64_t> due;
+    std::map<Period, std::int64_t> paid;
+
+    for (const auto& obligation : obligations) {
+        if (obligation.childId == childId) {
+            due[{obligation.billingYear,
+                 obligation.billingMonth}] += obligation.amountCents;
+        }
+    }
+
+    for (const auto& payment : payments) {
+        if (payment.childId == childId) {
+            paid[{payment.billingYear,
+                  payment.billingMonth}] += payment.amountCents;
+        }
+    }
+
+    // First apply each payment to its designated billing period.
+    std::map<Period, std::int64_t> excess;
+
+    for (const auto& [period, amountDue] : due) {
+        const std::int64_t amountPaid = paid[period];
+
+        result.outstanding[period] =
+            std::max<std::int64_t>(0, amountDue - amountPaid);
+
+        excess[period] =
+            std::max<std::int64_t>(0, amountPaid - amountDue);
+    }
+
+    // Then carry excess forward, oldest period first.
+        std::int64_t credit = 0;
+
+    for (auto& [period, outstanding] : result.outstanding) {
+        const std::int64_t applied =
+            std::min(credit, outstanding);
+
+        outstanding -= applied;
+        credit -= applied;
+
+        credit += excess[period];
+    }
+
+    result.availableCredit = credit;
+    return result;
+}
+
+} // namespace
+
+
 
 bool Ledger::registerChild(const Child& child) {
 
@@ -141,26 +211,20 @@ std::int64_t Ledger::getOutstandingBalance(
     int year,
     int month
 ) const {
-    std::int64_t amountDue = 0;
-    std::int64_t amountPaid = 0;
+    const auto allocation =
+        calculateAllocation(childId, obligations, payments);
 
-    for (const FeeObligation& obligation : obligations) {
-        if (obligation.childId == childId &&
-            obligation.billingYear == year &&
-            obligation.billingMonth == month) {
-            amountDue += obligation.amountCents;
-        }
-    }
+    const auto it =
+        allocation.outstanding.find({year, month});
 
-    for (const Payment& payment : payments) {
-        if (payment.childId == childId &&
-            payment.billingYear == year &&
-            payment.billingMonth == month) {
-            amountPaid += payment.amountCents;
-        }
-    }
+    if (it == allocation.outstanding.end())
+        return 0;
 
-    return amountDue > amountPaid
-        ? amountDue - amountPaid
-        : 0;
+    return it->second;
+}
+
+std::int64_t Ledger::getAvailableCredit(int childId) const {
+    return calculateAllocation(
+        childId, obligations, payments
+    ).availableCredit;
 }

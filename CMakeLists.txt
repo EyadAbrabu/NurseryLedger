@@ -69,3 +69,14 @@ target_include_directories(test_payment PRIVATE include)
 
 add_test(NAME PaymentRecording COMMAND test_payment)
 
+
+
+add_executable(test_credit
+    tests/test_credit.cpp
+    src/Ledger.cpp
+    src/Date.cpp
+)
+
+target_include_directories(test_credit PRIVATE include)
+
+add_test(NAME CreditAllocation COMMAND test_credit)

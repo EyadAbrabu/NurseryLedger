@@ -33,6 +33,15 @@ public:
     int month
 ) const;
 
+
+    std::int64_t getAvailableCredit(int childId) const;
+
+
+
+
+
+
+
 };
 
 #endif
