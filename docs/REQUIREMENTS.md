@@ -182,3 +182,15 @@ The following implementation details will be resolved during architecture and de
 - How to handle payment dates before enrollment.
 - How to recover from interrupted storage operations.
 - How to handle invalid or manually modified storage files.
+
+
+### Refund Handling — Functional Requirements Extension
+
+- **Refund-01:** The system shall allow refunds against unused credit associated with a specific child's billing period.
+- **Refund-02:** The system shall reject refunds exceeding the available unused credit from that period.
+- **Refund-03:** Refund transactions shall be recorded separately without deleting or modifying original payment records.
+- **Refund-04:** Credit already allocated to another billing obligation shall not be refundable as unused credit.
+- **Refund-05:** Refunds shall not affect the financial balances of other children.
+- **Refund-06:** The system shall reject invalid refund amounts, dates, payment methods, and unknown child identifiers.
+
+**Scope limitation:** Chronological reconstruction of balances and historical refund eligibility is not fully implemented in the current version.

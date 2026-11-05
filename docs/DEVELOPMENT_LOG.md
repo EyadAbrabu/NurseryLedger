@@ -39,3 +39,42 @@ This avoids adding dependencies and makes the validation logic straightforward t
 ### Outcome
 
 Pending implementation and automated tests.
+## November 5, 2026 — Refund Handling and Testing
+
+### Implementation
+- Introduced a Refund data structure and integrated refund handling into the Ledger class.
+- Implemented refunds against unused credit originating from a specific billing period.
+- Preserved original payment records to maintain transaction history.
+- Expanded regression tests for partial refunds, exhausted credit, invalid transactions, and separation between children's balances.
+
+### Problems encountered and solutions
+
+**1. Compilation errors caused by duplicated code**
+
+While modifying the credit-allocation algorithm, an obsolete section of code remained outside the function and namespace boundaries.
+
+The compiler reported errors involving unexpected `for` loops and undefined variables.
+
+We inspected the numbered source file, identified the duplicate implementation, removed it, and rebuilt successfully.
+
+**2. Incorrect refund test expectations**
+
+A test attempted to refund credit that had already been applied to a subsequent month's fee.
+
+The implementation rejected the refund, which was consistent with the business rule that only unused credit can be refunded.
+
+We redesigned the test to refund credit before generating the next month's obligation.
+
+**3. Loss of test coverage during debugging**
+
+Removing the incorrect assertions initially removed coverage for multiple partial refunds.
+
+We restored that coverage using independent test scenarios and added checks for account isolation and preservation of payment records.
+
+### Verification
+
+All six CTest suites passed after the expanded refund tests.
+
+### Known limitation
+
+The current allocation engine does not fully reconstruct financial balances chronologically from transaction dates. This remains an area for future improvement.
