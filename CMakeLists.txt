@@ -80,3 +80,15 @@ add_executable(test_credit
 target_include_directories(test_credit PRIVATE include)
 
 add_test(NAME CreditAllocation COMMAND test_credit)
+
+
+
+add_executable(test_refund
+    tests/test_refund.cpp
+    src/Ledger.cpp
+    src/Date.cpp
+)
+
+target_include_directories(test_refund PRIVATE include)
+
+add_test(NAME RefundHandling COMMAND test_refund)

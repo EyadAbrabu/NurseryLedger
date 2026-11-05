@@ -10,64 +10,83 @@ using Period = std::pair<int, int>;
 
 struct AllocationResult {
     std::map<Period, std::int64_t> outstanding;
+    std::map<Period, std::int64_t> refundableByPeriod;
     std::int64_t availableCredit = 0;
 };
 
 AllocationResult calculateAllocation(
     int childId,
     const std::vector<FeeObligation>& obligations,
-    const std::vector<Payment>& payments
+    const std::vector<Payment>& payments,
+    const std::vector<Refund>& refunds
 ) {
     AllocationResult result;
 
     std::map<Period, std::int64_t> due;
     std::map<Period, std::int64_t> paid;
+    std::map<Period, std::int64_t> refunded;
 
     for (const auto& obligation : obligations) {
-        if (obligation.childId == childId) {
-            due[{obligation.billingYear,
-                 obligation.billingMonth}] += obligation.amountCents;
-        }
+        if (obligation.childId == childId)
+            due[{obligation.billingYear, obligation.billingMonth}]
+                += obligation.amountCents;
     }
 
     for (const auto& payment : payments) {
-        if (payment.childId == childId) {
-            paid[{payment.billingYear,
-                  payment.billingMonth}] += payment.amountCents;
-        }
+        if (payment.childId == childId)
+            paid[{payment.billingYear, payment.billingMonth}]
+                += payment.amountCents;
     }
 
-    // First apply each payment to its designated billing period.
+    for (const auto& refund : refunds) {
+        if (refund.childId == childId)
+            refunded[{refund.billingYear, refund.billingMonth}]
+                += refund.amountCents;
+    }
+
+    // Each period's payment first settles its own fee.
+    // Excess, minus refunds, can cover later periods.
     std::map<Period, std::int64_t> excess;
 
     for (const auto& [period, amountDue] : due) {
-        const std::int64_t amountPaid = paid[period];
+        const auto amountPaid = paid[period];
+        const auto directSettlement = std::min(amountDue, amountPaid);
 
-        result.outstanding[period] =
-            std::max<std::int64_t>(0, amountDue - amountPaid);
+        result.outstanding[period] = amountDue - directSettlement;
 
-        excess[period] =
-            std::max<std::int64_t>(0, amountPaid - amountDue);
+        excess[period] = amountPaid - directSettlement
+                       - refunded[period];
     }
 
-    // Then carry excess forward, oldest period first.
-        std::int64_t credit = 0;
+    // Track unused credit by its source period.
+    std::map<Period, std::int64_t> creditBuckets;
 
     for (auto& [period, outstanding] : result.outstanding) {
-        const std::int64_t applied =
-            std::min(credit, outstanding);
+        // Apply older credit to this month's outstanding fee.
+        for (auto& [sourcePeriod, credit] : creditBuckets) {
+            if (sourcePeriod >= period || outstanding == 0)
+                continue;
 
-        outstanding -= applied;
-        credit -= applied;
+            const auto applied = std::min(credit, outstanding);
+            credit -= applied;
+            outstanding -= applied;
+        }
 
-        credit += excess[period];
+        // Any excess from this period becomes future credit.
+        if (excess[period] > 0)
+            creditBuckets[period] += excess[period];
     }
 
-    result.availableCredit = credit;
+    for (const auto& [period, credit] : creditBuckets) {
+        result.refundableByPeriod[period] = credit;
+        result.availableCredit += credit;
+    }
+
     return result;
 }
 
 } // namespace
+
 
 
 
@@ -212,7 +231,7 @@ std::int64_t Ledger::getOutstandingBalance(
     int month
 ) const {
     const auto allocation =
-        calculateAllocation(childId, obligations, payments);
+        calculateAllocation(childId, obligations, payments, refunds);
 
     const auto it =
         allocation.outstanding.find({year, month});
@@ -225,6 +244,54 @@ std::int64_t Ledger::getOutstandingBalance(
 
 std::int64_t Ledger::getAvailableCredit(int childId) const {
     return calculateAllocation(
-        childId, obligations, payments
+        childId, obligations, payments , refunds
     ).availableCredit;
+}
+
+
+
+bool Ledger::recordRefund(const Refund& refund) {
+    if (!refund.issuedDate.isValid() ||
+        refund.amountCents <= 0 ||
+        refund.billingYear < 1 ||
+        refund.billingMonth < 1 ||
+        refund.billingMonth > 12)
+        return false;
+
+    if (refund.method != PaymentMethod::Cash &&
+        refund.method != PaymentMethod::BankTransfer)
+        return false;
+
+    bool childExists = false;
+    for (const auto& child : children) {
+        if (child.id == refund.childId) {
+            childExists = true;
+            break;
+        }
+    }
+
+    if (!childExists)
+        return false;
+
+    const auto allocation = calculateAllocation(
+        refund.childId, obligations, payments, refunds
+    );
+
+    const auto it = allocation.refundableByPeriod.find(
+        {refund.billingYear, refund.billingMonth}
+    );
+
+    if (it == allocation.refundableByPeriod.end() ||
+        refund.amountCents > it->second)
+        return false;
+
+    refunds.push_back(refund);
+    return true;
+}
+
+
+
+
+const std::vector<Refund>& Ledger::getRefunds() const {
+    return refunds;
 }

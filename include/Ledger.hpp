@@ -5,7 +5,7 @@
 #include "Child.hpp"
 #include "FeeObligation.hpp"
 #include "Payment.hpp"
-
+#include "Refund.hpp"
 
 
 class Ledger {
@@ -13,7 +13,7 @@ private:
     std::vector<Child> children;
     std::vector<FeeObligation> obligations;
     std::vector<Payment> payments;
-
+    std::vector<Refund> refunds;
 
 
 
@@ -37,7 +37,9 @@ public:
     std::int64_t getAvailableCredit(int childId) const;
 
 
+    bool recordRefund(const Refund& refund);
 
+const std::vector<Refund>& getRefunds() const;
 
 
 
