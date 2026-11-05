@@ -79,6 +79,13 @@ The system shall reject invalid dates, negative or zero payment amounts, unknown
 
 The system shall allow an administrator to view recorded payment transactions for a child.
 
+**FR-13 — Prevention of Duplicate Monthly Billing**
+
+The system shall ensure that each child has no more than one fee obligation per billing month and year.
+
+- Duplicate billing attempts shall not create additional obligations.
+- Existing obligations shall remain unchanged.
+- Billing for subsequent months shall remain possible.
 ## 4. Non-Functional Requirements
 
 **NFR-01 — Platform Compatibility**
