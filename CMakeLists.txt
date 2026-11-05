@@ -56,3 +56,16 @@ add_executable(test_billing
 target_include_directories(test_billing PRIVATE include)
 
 add_test(NAME MonthlyBilling COMMAND test_billing)
+
+
+
+add_executable(test_payment
+    tests/test_payment.cpp
+    src/Ledger.cpp
+    src/Date.cpp
+)
+
+target_include_directories(test_payment PRIVATE include)
+
+add_test(NAME PaymentRecording COMMAND test_payment)
+

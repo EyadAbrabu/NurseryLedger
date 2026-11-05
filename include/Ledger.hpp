@@ -4,16 +4,29 @@
 #include <vector>
 #include "Child.hpp"
 #include "FeeObligation.hpp"
+#include "Payment.hpp"
+
+
 
 class Ledger {
 private:
     std::vector<Child> children;
     std::vector<FeeObligation> obligations;
+    std::vector<Payment> payments;
+
+
+
 
 public:
     bool registerChild(const Child& child);
     bool generateMonthlyFee(int childId, int year, int month);
+
     const std::vector<FeeObligation>& getObligations() const;
+
+    bool recordPayment(const Payment& payment);
+    const std::vector<Payment>& getPayments() const;
+
+
 };
 
 #endif

@@ -81,3 +81,56 @@ bool Ledger::generateMonthlyFee(int childId, int year, int month) {
 const std::vector<FeeObligation>& Ledger::getObligations() const {
     return obligations;
 }
+
+
+bool Ledger::recordPayment(const Payment& payment) {
+    if (!payment.receivedDate.isValid())
+        return false;
+
+    if (payment.amountCents <= 0)
+        return false;
+
+    if (payment.billingYear < 1 ||
+        payment.billingMonth < 1 ||
+        payment.billingMonth > 12)
+        return false;
+
+    bool childExists = false;
+
+    for (const Child& child : children) {
+        if (child.id == payment.childId) {
+            childExists = true;
+
+            if (payment.billingYear < child.enrollmentDate.year ||
+                (payment.billingYear == child.enrollmentDate.year &&
+                 payment.billingMonth < child.enrollmentDate.month))
+                return false;
+
+            break;
+        }
+    }
+
+    if (!childExists)
+        return false;
+
+    bool obligationExists = false;
+
+    for (const FeeObligation& obligation : obligations) {
+        if (obligation.childId == payment.childId &&
+            obligation.billingYear == payment.billingYear &&
+            obligation.billingMonth == payment.billingMonth) {
+            obligationExists = true;
+            break;
+        }
+    }
+
+    if (!obligationExists)
+        return false;
+
+    payments.push_back(payment);
+    return true;
+}
+
+const std::vector<Payment>& Ledger::getPayments() const {
+    return payments;
+}
