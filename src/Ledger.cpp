@@ -179,6 +179,10 @@ bool Ledger::recordPayment(const Payment& payment) {
     if (payment.amountCents <= 0)
         return false;
 
+    if (payment.method != PaymentMethod::Cash &&
+    payment.method != PaymentMethod::BankTransfer)
+    return false;
+
     if (payment.billingYear < 1 ||
         payment.billingMonth < 1 ||
         payment.billingMonth > 12)
@@ -294,4 +298,8 @@ bool Ledger::recordRefund(const Refund& refund) {
 
 const std::vector<Refund>& Ledger::getRefunds() const {
     return refunds;
+}
+
+const std::vector<Child>& Ledger::getChildren() const {
+    return children;
 }

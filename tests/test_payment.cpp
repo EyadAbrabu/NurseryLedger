@@ -59,5 +59,30 @@ assert(ledger.recordPayment(remainingPayment));
 assert(ledger.getOutstandingBalance(101, 2026, 11) == 0);
 
 
+
+// Reject unsupported payment methods.
+{
+    Ledger account;
+
+    assert(account.registerChild(
+        {303, "Test Child", {2026, 11, 1}, 15000}
+    ));
+
+    assert(account.generateMonthlyFee(303, 2026, 11));
+
+    const auto before = account.getPayments().size();
+
+    assert(!account.recordPayment(
+        {303, {2026, 11, 5}, 15000,
+         static_cast<PaymentMethod>(99), 2026, 11}
+    ));
+
+    assert(account.getPayments().size() == before);
+}
+
+
+
+
+
     return 0;
 }
