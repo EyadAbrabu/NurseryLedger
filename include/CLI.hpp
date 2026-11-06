@@ -5,7 +5,7 @@
 #include "Ledger.hpp"
 #include <string>
 #include <sstream>
-
+#include <cstdint>
 
 
 class CLI {
@@ -23,6 +23,10 @@ private:
     void handleRegister(std::istringstream& input);
     void handleChildren() const;
     void handleBill(std::istringstream& input);
+    static bool parseMoney(const std::string& text,
+                       std::int64_t& cents);
+
+    void handlePay(std::istringstream& input);
 
 
 };

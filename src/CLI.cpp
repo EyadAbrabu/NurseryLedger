@@ -2,7 +2,8 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
-
+#include <cctype>
+#include <limits>
 
 CLI::CLI(Ledger& ledger) : ledger(ledger) {}
 
@@ -35,17 +36,15 @@ void CLI::handleRegister(std::istringstream& input) {
     }
 
     // Convert euros to cents without floating-point rounding.
-    std::int64_t euros, cents;
-    char dot;
-    std::istringstream money(fee);
+    std::int64_t amountCents;
 
-    if (!(money >> euros >> dot >> cents) || dot != '.' ||
-        cents < 0 || cents > 99) {
-        std::cout << "Invalid fee. Use format 150.00\n";
-        return;
-    }
+if (!parseMoney(fee, amountCents)) {
+    std::cout << "Invalid fee. Use format 150.00\n";
+    return;
+}
 
-    Child child{id, name, {year, month, day}, euros * 100 + cents};
+
+    Child child{id, name, {year, month, day}, amountCents};;
 
     if (ledger.registerChild(child)) {
         std::cout << "Child registered successfully.\n";
@@ -104,7 +103,83 @@ void CLI::handleBill(std::istringstream& input) {
     }
 }
 
+void CLI::handlePay(std::istringstream& input) {
+    int childId, year, month;
+    std::string dateText, amountText, methodText;
 
+    // Parse the payment details. The billing period is separate
+    // from the date the payment was actually received.
+    if (!(input >> childId >> dateText >> amountText
+                >> methodText >> year >> month)) {
+        std::cout << "Usage: pay <child_id> <YYYY-MM-DD> "
+                     "<amount> <cash|bank> <year> <month>\n";
+        return;
+    }
+
+    std::string extra;
+    if (input >> extra) {
+        std::cout << "Too many arguments.\n";
+        return;
+    }
+
+    // Validate the date format before constructing a Date.
+    int receivedYear, receivedMonth, receivedDay;
+    char dash1, dash2;
+    std::istringstream dateInput(dateText);
+
+    if (!(dateInput >> receivedYear >> dash1
+                    >> receivedMonth >> dash2 >> receivedDay)
+        || dash1 != '-' || dash2 != '-'
+        || dateInput.peek() != std::char_traits<char>::eof()) {
+        std::cout << "Invalid date. Use YYYY-MM-DD.\n";
+        return;
+    }
+
+    Date receivedDate{receivedYear, receivedMonth, receivedDay};
+
+    if (!receivedDate.isValid()) {
+        std::cout << "Invalid calendar date.\n";
+        return;
+    }
+
+    // Use the shared parser so all financial commands interpret
+    // monetary values consistently without floating-point errors.
+    std::int64_t amountCents;
+
+    if (!parseMoney(amountText, amountCents)) {
+        std::cout << "Invalid amount. Use format 150.00\n";
+        return;
+    }
+
+    PaymentMethod method;
+
+    if (methodText == "cash") {
+        method = PaymentMethod::Cash;
+    } else if (methodText == "bank") {
+        method = PaymentMethod::BankTransfer;
+    } else {
+        std::cout << "Invalid payment method. Use cash or bank.\n";
+        return;
+    }
+
+    Payment payment{
+        childId,
+        receivedDate,
+        amountCents,
+        method,
+        year,
+        month
+    };
+
+    // The Ledger validates the child, billing period, and
+    // obligation before accepting the payment.
+    if (ledger.recordPayment(payment)) {
+        std::cout << "Payment recorded successfully.\n";
+    } else {
+        std::cout << "Payment rejected. Check the child ID, "
+                     "billing period, or existing obligation.\n";
+    }
+}
 
 
 
@@ -121,6 +196,8 @@ void CLI::executeCommand(const std::string& line) {
         handleChildren();
     } else if (command == "bill") {
     handleBill(input); 
+    } else if (command == "pay") {
+    handlePay(input);
 
    } else if (command.empty()) {
         return;
@@ -150,4 +227,56 @@ void CLI::run() {
     }
 
     std::cout << "Goodbye.\n";
+}
+
+
+bool CLI::parseMoney(const std::string& text,
+                     std::int64_t& cents) {
+    // Require a non-negative amount with exactly two decimal
+    // places, such as 150.00. Never use floating-point money.
+    const auto dot = text.find('.');
+
+    if (dot == std::string::npos ||
+        dot == 0 ||
+        dot != text.size() - 3) {
+        return false;
+    }
+
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (i == dot) continue;
+
+        if (!std::isdigit(
+                static_cast<unsigned char>(text[i]))) {
+            return false;
+        }
+    }
+
+    std::int64_t euros = 0;
+
+    // Check overflow before multiplying or adding digits.
+    const auto maxEuros =
+        std::numeric_limits<std::int64_t>::max() / 100;
+
+    for (std::size_t i = 0; i < dot; ++i) {
+        int digit = text[i] - '0';
+
+        if (euros > (maxEuros - digit) / 10) {
+            return false;
+        }
+
+        euros = euros * 10 + digit;
+    }
+
+    const int fractional =
+        (text[dot + 1] - '0') * 10 +
+        (text[dot + 2] - '0');
+
+    if (euros >
+        (std::numeric_limits<std::int64_t>::max()
+         - fractional) / 100) {
+        return false;
+    }
+
+    cents = euros * 100 + fractional;
+    return cents > 0;
 }
