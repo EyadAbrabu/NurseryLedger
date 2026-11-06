@@ -22,6 +22,7 @@ private:
 
     void handleRegister(std::istringstream& input);
     void handleChildren() const;
+    void handleBill(std::istringstream& input);
 
 
 };

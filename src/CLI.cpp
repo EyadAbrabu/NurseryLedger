@@ -76,6 +76,37 @@ void CLI::handleChildren() const {
     }
 }
 
+void CLI::handleBill(std::istringstream& input) {
+    int childId, year, month;
+
+    // Read the child ID and billing period from the terminal.
+    // Ledger remains responsible for validating the business rules.
+    if (!(input >> childId >> year >> month)) {
+        std::cout << "Usage: bill <child_id> <year> <month>\n";
+        return;
+    }
+
+    // Reject extra arguments rather than silently ignoring them.
+    std::string extra;
+    if (input >> extra) {
+        std::cout << "Too many arguments. Usage: bill <child_id> <year> <month>\n";
+        return;
+    }
+
+    // Delegate fee generation to Ledger, which checks whether the child
+    // exists, whether the period is valid, and whether a bill already exists.
+    if (ledger.generateMonthlyFee(childId, year, month)) {
+        std::cout << "Monthly fee generated successfully for child "
+                  << childId << " (" << year << "-" << month << ").\n";
+    } else {
+        std::cout << "Billing failed. Check the child ID, billing period, "
+                  << "enrollment date, or duplicate fee.\n";
+    }
+}
+
+
+
+
 
 void CLI::executeCommand(const std::string& line) {
     std::istringstream input(line);
@@ -88,7 +119,10 @@ void CLI::executeCommand(const std::string& line) {
         handleRegister(input);
     } else if (command == "children") {
         handleChildren();
-    } else if (command.empty()) {
+    } else if (command == "bill") {
+    handleBill(input); 
+
+   } else if (command.empty()) {
         return;
     } else {
         std::cout << "Unknown or unimplemented command: "
