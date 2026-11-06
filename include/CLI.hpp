@@ -29,6 +29,8 @@ private:
     void handlePay(std::istringstream& input);
     void handleBalance(std::istringstream& input);
     void handleCredit(std::istringstream& input);
+    void handleRefund(std::istringstream& input);
+
 
 };
 

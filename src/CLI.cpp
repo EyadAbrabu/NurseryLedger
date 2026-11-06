@@ -201,8 +201,10 @@ void CLI::executeCommand(const std::string& line) {
     } else if (command == "balance") {
     handleBalance(input);
    } else if (command == "credit") {
-
       handleCredit(input);
+    } else if (command == "refund") {
+    handleRefund(input);
+
    } else if (command.empty()) {
         return;
     } else {
@@ -354,4 +356,82 @@ void CLI::handleCredit(std::istringstream& input) {
               << cents / 100 << '.'
               << std::setw(2) << std::setfill('0')
               << cents % 100 << " EUR\n";
+}
+void CLI::handleRefund(std::istringstream& input) {
+    int childId, year, month;
+    std::string dateText, amountText, methodText;
+
+    // Refunds reference the original billing period that produced
+    // the credit. The issue date records when money was returned.
+    if (!(input >> childId >> dateText >> amountText
+                >> methodText >> year >> month)) {
+        std::cout << "Usage: refund <child_id> <YYYY-MM-DD> "
+                     "<amount> <cash|bank> <year> <month>\n";
+        return;
+    }
+
+    std::string extra;
+    if (input >> extra) {
+        std::cout << "Too many arguments.\n";
+        return;
+    }
+
+    // Parse the refund issue date and reject malformed input.
+    int refundYear, refundMonth, refundDay;
+    char dash1, dash2;
+    std::istringstream dateInput(dateText);
+
+    if (!(dateInput >> refundYear >> dash1
+                    >> refundMonth >> dash2 >> refundDay)
+        || dash1 != '-' || dash2 != '-'
+        || dateInput.peek() != std::char_traits<char>::eof()) {
+        std::cout << "Invalid date. Use YYYY-MM-DD.\n";
+        return;
+    }
+
+    Date issuedDate{refundYear, refundMonth, refundDay};
+
+    if (!issuedDate.isValid()) {
+        std::cout << "Invalid calendar date.\n";
+        return;
+    }
+
+    // Reuse the same strict money parser used for registration
+    // and payments, avoiding floating-point calculations.
+    std::int64_t amountCents;
+
+    if (!parseMoney(amountText, amountCents)) {
+        std::cout << "Invalid amount. Use format 30.00\n";
+        return;
+    }
+
+    PaymentMethod method;
+
+    if (methodText == "cash") {
+        method = PaymentMethod::Cash;
+    } else if (methodText == "bank") {
+        method = PaymentMethod::BankTransfer;
+    } else {
+        std::cout << "Invalid refund method. Use cash or bank.\n";
+        return;
+    }
+
+    Refund refund{
+        childId,
+        issuedDate,
+        amountCents,
+        method,
+        year,
+        month
+    };
+
+    // Ledger enforces the refund policy: only unused credit
+    // originating from this billing period can be refunded.
+    // Credit already applied to later bills cannot be refunded.
+    if (ledger.recordRefund(refund)) {
+        std::cout << "Refund recorded successfully.\n";
+    } else {
+        std::cout << "Refund rejected. Check the child, billing period, "
+                     "and available refundable credit.\n";
+    }
 }
