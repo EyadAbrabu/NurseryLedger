@@ -198,7 +198,11 @@ void CLI::executeCommand(const std::string& line) {
     handleBill(input); 
     } else if (command == "pay") {
     handlePay(input);
+    } else if (command == "balance") {
+    handleBalance(input);
+   } else if (command == "credit") {
 
+      handleCredit(input);
    } else if (command.empty()) {
         return;
     } else {
@@ -279,4 +283,75 @@ bool CLI::parseMoney(const std::string& text,
 
     cents = euros * 100 + fractional;
     return cents > 0;
+}
+
+void CLI::handleBalance(std::istringstream& input) {
+    int childId, year, month;
+    std::string extra;
+
+    // The balance belongs to one child and one billing period.
+    if (!(input >> childId >> year >> month) || (input >> extra)) {
+        std::cout << "Usage: balance <child_id> <year> <month>\n";
+        return;
+    }
+
+    // Verify that the requested obligation exists. A missing bill
+    // should not be confused with an existing bill that is fully paid.
+    bool found = false;
+
+    for (const auto& obligation : ledger.getObligations()) {
+        if (obligation.childId == childId &&
+            obligation.billingYear == year &&
+            obligation.billingMonth == month) {
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cout << "No bill exists for this child and period.\n";
+        return;
+    }
+
+    const auto cents =
+        ledger.getOutstandingBalance(childId, year, month);
+
+    std::cout << "Outstanding balance: "
+              << cents / 100 << '.'
+              << std::setw(2) << std::setfill('0')
+              << cents % 100 << " EUR\n";
+}
+
+void CLI::handleCredit(std::istringstream& input) {
+    int childId;
+    std::string extra;
+
+    if (!(input >> childId) || (input >> extra)) {
+        std::cout << "Usage: credit <child_id>\n";
+        return;
+    }
+
+    // Check child existence so an unknown ID is not reported
+    // as a valid child with zero available credit.
+    bool found = false;
+
+    for (const auto& child : ledger.getChildren()) {
+        if (child.id == childId) {
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cout << "Child not found.\n";
+        return;
+    }
+
+    // Credit allocation is calculated entirely by the Ledger.
+    const auto cents = ledger.getAvailableCredit(childId);
+
+    std::cout << "Available credit: "
+              << cents / 100 << '.'
+              << std::setw(2) << std::setfill('0')
+              << cents % 100 << " EUR\n";
 }
