@@ -1,6 +1,8 @@
 #include "CLI.hpp"
 #include <iostream>
 #include <sstream>
+#include <iomanip>
+
 
 CLI::CLI(Ledger& ledger) : ledger(ledger) {}
 
@@ -20,6 +22,61 @@ void CLI::showHelp() const {
         << "  exit      Quit\n";
 }
 
+
+void CLI::handleRegister(std::istringstream& input) {
+    int id, year, month, day;
+    char dash1, dash2;
+    std::string name, fee;
+
+    if (!(input >> id >> name >> year >> dash1 >> month >> dash2 >> day >> fee)
+        || dash1 != '-' || dash2 != '-') {
+        std::cout << "Usage: register <id> <name> <YYYY-MM-DD> <fee>\n";
+        return;
+    }
+
+    // Convert euros to cents without floating-point rounding.
+    std::int64_t euros, cents;
+    char dot;
+    std::istringstream money(fee);
+
+    if (!(money >> euros >> dot >> cents) || dot != '.' ||
+        cents < 0 || cents > 99) {
+        std::cout << "Invalid fee. Use format 150.00\n";
+        return;
+    }
+
+    Child child{id, name, {year, month, day}, euros * 100 + cents};
+
+    if (ledger.registerChild(child)) {
+        std::cout << "Child registered successfully.\n";
+    } else {
+        std::cout << "Registration failed. Check the ID, date, or fee.\n";
+    }
+}
+
+void CLI::handleChildren() const {
+    const auto& children = ledger.getChildren();
+
+    if (children.empty()) {
+        std::cout << "No children registered.\n";
+        return;
+    }
+
+    std::cout << "\nID\tName\tEnrollment\tMonthly Fee\n";
+
+    for (const auto& child : children) {
+        std::cout << child.id << '\t'
+                  << child.name << '\t'
+                  << child.enrollmentDate.year << '-'
+                  << child.enrollmentDate.month << '-'
+                  << child.enrollmentDate.day << '\t'
+                  << child.monthlyFeeCents / 100 << '.'
+		  << std::setw(2) << std::setfill('0')
+		  << child.monthlyFeeCents % 100 << " EUR\n";
+    }
+}
+
+
 void CLI::executeCommand(const std::string& line) {
     std::istringstream input(line);
     std::string command;
@@ -27,13 +84,18 @@ void CLI::executeCommand(const std::string& line) {
 
     if (command == "help") {
         showHelp();
+    } else if (command == "register") {
+        handleRegister(input);
+    } else if (command == "children") {
+        handleChildren();
     } else if (command.empty()) {
         return;
     } else {
-        std::cout << "Command not implemented yet: "
+        std::cout << "Unknown or unimplemented command: "
                   << command << '\n';
     }
 }
+
 
 void CLI::run() {
     std::string line;
