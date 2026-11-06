@@ -20,7 +20,9 @@ void CLI::showHelp() const {
         << "  credit    Show available credit\n"
         << "  payments  List payments\n"
         << "  refunds   List refunds\n"
+        << "  bills     List monthly fee obligations\n"
         << "  exit      Quit\n";
+
 }
 
 
@@ -204,7 +206,12 @@ void CLI::executeCommand(const std::string& line) {
       handleCredit(input);
     } else if (command == "refund") {
     handleRefund(input);
-
+    } else if (command == "payments") {
+    handlePayments(input);
+} else if (command == "refunds") {
+    handleRefunds(input);
+} else if (command == "bills") {
+    handleBills(input);
    } else if (command.empty()) {
         return;
     } else {
@@ -434,4 +441,133 @@ void CLI::handleRefund(std::istringstream& input) {
         std::cout << "Refund rejected. Check the child, billing period, "
                      "and available refundable credit.\n";
     }
+}
+
+void CLI::handlePayments(std::istringstream& input) {
+    int childId;
+    std::string extra;
+
+    if (!(input >> childId) || (input >> extra)) {
+        std::cout << "Usage: payments <child_id>\n";
+        return;
+    }
+
+    bool found = false;
+
+    std::cout << "\nPAYMENT HISTORY - CHILD " << childId << "\n";
+    std::cout << std::left
+              << std::setw(14) << "Received"
+              << std::setw(14) << "Billing"
+              << std::setw(15) << "Method"
+              << "Amount\n";
+
+    // Display the original payment records without recalculating
+    // financial balances or modifying the Ledger's data.
+    for (const auto& payment : ledger.getPayments()) {
+        if (payment.childId != childId) continue;
+
+        found = true;
+
+        std::cout << payment.receivedDate.year << '-'
+                  << payment.receivedDate.month << '-'
+                  << payment.receivedDate.day << "     "
+                  << payment.billingYear << '-'
+                  << payment.billingMonth << "       "
+                  << (payment.method == PaymentMethod::Cash
+                      ? "Cash" : "Bank") << "       "
+                  << payment.amountCents / 100 << '.'
+                  << std::right << std::setfill('0')
+                  << std::setw(2) << payment.amountCents % 100
+                  << std::setfill(' ') << " EUR\n";
+    }
+
+    if (!found)
+        std::cout << "No payments found.\n";
+}
+
+
+void CLI::handleRefunds(std::istringstream& input) {
+    int childId;
+    std::string extra;
+
+    if (!(input >> childId) || (input >> extra)) {
+        std::cout << "Usage: refunds <child_id>\n";
+        return;
+    }
+
+    bool found = false;
+
+    std::cout << "\nREFUND HISTORY - CHILD " << childId << "\n";
+
+    // Refunds remain separate from payments so the history
+    // clearly distinguishes received and returned money.
+    for (const auto& refund : ledger.getRefunds()) {
+        if (refund.childId != childId) continue;
+
+        found = true;
+
+        std::cout << "Issued: "
+                  << refund.issuedDate.year << '-'
+                  << refund.issuedDate.month << '-'
+                  << refund.issuedDate.day
+                  << " | Billing: "
+                  << refund.billingYear << '-'
+                  << refund.billingMonth
+                  << " | Method: "
+                  << (refund.method == PaymentMethod::Cash
+                      ? "Cash" : "Bank")
+                  << " | Amount: "
+                  << refund.amountCents / 100 << '.'
+                  << std::setfill('0') << std::setw(2)
+                  << refund.amountCents % 100
+                  << std::setfill(' ') << " EUR\n";
+    }
+
+    if (!found)
+        std::cout << "No refunds found.\n";
+}
+
+
+void CLI::handleBills(std::istringstream& input) {
+    int childId;
+    std::string extra;
+
+    if (!(input >> childId) || (input >> extra)) {
+        std::cout << "Usage: bills <child_id>\n";
+        return;
+    }
+
+    bool found = false;
+
+    std::cout << "\nBILLING HISTORY - CHILD " << childId << "\n";
+
+    // Fee obligations represent what was billed, independently
+    // of when payments were actually received.
+    for (const auto& bill : ledger.getObligations()) {
+        if (bill.childId != childId) continue;
+
+        found = true;
+
+        const auto outstanding =
+            ledger.getOutstandingBalance(
+                childId, bill.billingYear, bill.billingMonth);
+
+        std::cout << "Period: "
+                  << bill.billingYear << '-' << bill.billingMonth
+                  << " | Due: "
+                  << bill.dueDate.year << '-'
+                  << bill.dueDate.month << '-'
+                  << bill.dueDate.day
+                  << " | Fee: "
+                  << bill.amountCents / 100 << '.'
+                  << std::setfill('0') << std::setw(2)
+                  << bill.amountCents % 100
+                  << " EUR | Outstanding: "
+                  << outstanding / 100 << '.'
+                  << std::setw(2) << outstanding % 100
+                  << std::setfill(' ') << " EUR\n";
+    }
+
+    if (!found)
+        std::cout << "No bills found.\n";
 }

@@ -30,7 +30,9 @@ private:
     void handleBalance(std::istringstream& input);
     void handleCredit(std::istringstream& input);
     void handleRefund(std::istringstream& input);
-
+    void handlePayments(std::istringstream& input);
+    void handleRefunds(std::istringstream& input);
+    void handleBills(std::istringstream& input);
 
 };
 
