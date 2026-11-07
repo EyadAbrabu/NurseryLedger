@@ -4,10 +4,19 @@
 #include <string>
 #include <filesystem>
 #include <utility>
+#include <chrono>
 
 
 bool Storage::save(const Ledger& ledger) {
-    std::ofstream file("children.csv");
+    return saveSnapshot(ledger);
+}
+
+bool Storage::writeFiles(
+    const Ledger& ledger,
+    const std::filesystem::path& directory
+) {
+
+   std::ofstream file(directory / "children.csv");
 
     if (!file.is_open()) {
         return false;
@@ -25,14 +34,14 @@ bool Storage::save(const Ledger& ledger) {
     }
 
     // Check that the children CSV was written successfully.
-file.flush();
+file.close();
 
-if (!file.good()) {
+if (file.fail()) {
     return false;
 }
 
 // Save generated monthly fee obligations separately.
-std::ofstream billsFile("obligations.csv");
+std::ofstream billsFile(directory / "obligations.csv");
 
 if (!billsFile.is_open()) {
     return false;
@@ -50,14 +59,14 @@ for (const FeeObligation& bill : ledger.getObligations()) {
               << bill.amountCents << "\n";
 }
 
-billsFile.flush();
+billsFile.close();
 
-if (!billsFile.good()) {
+if (billsFile.fail()) {
     return false;
 }
 
 // Save payment records.
-std::ofstream paymentsFile("payments.csv");
+std::ofstream paymentsFile(directory / "payments.csv");
 
 if (!paymentsFile.is_open()) {
     return false;
@@ -75,14 +84,14 @@ for (const Payment& payment : ledger.getPayments()) {
                  << payment.billingYear << ","
                  << payment.billingMonth << "\n";
 }
-paymentsFile.flush();
+paymentsFile.close();
 
-if (!paymentsFile.good()) {
+if (paymentsFile.fail()) {
     return false;
 }
 
 // Save refunds separately from payments.
-std::ofstream refundsFile("refunds.csv");
+std::ofstream refundsFile(directory / "refunds.csv");
 
 if (!refundsFile.is_open()) {
     return false;
@@ -101,29 +110,167 @@ for (const Refund& refund : ledger.getRefunds()) {
                 << refund.billingMonth << "\n";
 }
 
-refundsFile.flush();
-return refundsFile.good();
+refundsFile.close();
+return !refundsFile.fail();
 
 }
 
 
+
+bool Storage::saveSnapshot(const Ledger& ledger) {
+    namespace fs = std::filesystem;
+
+    try {
+        const fs::path root = ".nurseryledger";
+        const fs::path snapshots = root / "snapshots";
+
+        fs::create_directories(snapshots);
+
+        // Give each snapshot a unique directory name.
+        const auto timestamp =
+            std::chrono::steady_clock::now()
+                .time_since_epoch().count();
+
+        const std::string name =
+            "snapshot-" + std::to_string(timestamp);
+
+        const fs::path temporary =
+            snapshots / (name + ".tmp");
+
+        const fs::path completed =
+            snapshots / name;
+
+        // Never overwrite another snapshot.
+        if (fs::exists(temporary) ||
+            fs::exists(completed)) {
+            return false;
+        }
+
+        fs::create_directory(temporary);
+
+        // Write all four CSV files into the new directory.
+        if (!writeFiles(ledger, temporary)) {
+            fs::remove_all(temporary);
+            return false;
+        }
+
+        // The snapshot is complete. Publish its directory.
+        fs::rename(temporary, completed);
+
+        // Prepare a pointer to the latest complete snapshot.
+        const fs::path pointerTemp = root / "CURRENT.tmp";
+        const fs::path pointer = root / "CURRENT";
+
+        {
+            std::ofstream out(pointerTemp, std::ios::trunc);
+
+            if (!out.is_open()) {
+                return false;
+            }
+
+            out << name << '\n';
+            out.close();
+
+            if (!out.good()) {
+                return false;
+            }
+        }
+
+        // On our Linux filesystem, this rename atomically
+        // replaces the previous CURRENT pointer.
+        fs::rename(pointerTemp, pointer);
+
+        return true;
+    }
+    catch (const fs::filesystem_error&) {
+        return false;
+    }
+}
+
+
 bool Storage::load(Ledger& ledger) {
-    std::ifstream file("children.csv");
+    namespace fs = std::filesystem;
+
+    const fs::path root = ".nurseryledger";
+    const fs::path pointer = root / "CURRENT";
+
+    try {
+        if (fs::exists(pointer)) {
+            std::ifstream in(pointer);
+            std::string snapshotName;
+            std::string extra;
+
+            if (!in ||
+                !std::getline(in, snapshotName) ||
+                snapshotName.empty() ||
+                snapshotName == "." ||
+                snapshotName == ".." ||
+                snapshotName.find_first_not_of(
+                    "abcdefghijklmnopqrstuvwxyz"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    "0123456789-_"
+                ) != std::string::npos ||
+                std::getline(in, extra)) {
+                return false;
+            }
+
+            const fs::path directory =
+                root / "snapshots" / snapshotName;
+
+            if (!fs::is_directory(directory)) {
+                return false;
+            }
+
+            // Every committed snapshot must be complete.
+            for (const char* filename : {
+                "children.csv",
+                "obligations.csv",
+                "payments.csv",
+                "refunds.csv"
+            }) {
+                if (!fs::is_regular_file(directory / filename)) {
+                    return false;
+                }
+            }
+
+            return loadFiles(ledger, directory);
+        }
+
+        // A snapshot system without CURRENT is incomplete.
+        // Do not silently fall back to older financial records.
+        if (fs::exists(root)) {
+            return false;
+        }
+
+        // Compatibility with the original CSV storage.
+        return loadFiles(ledger, ".");
+    }
+    catch (const fs::filesystem_error&) {
+        return false;
+    }
+}
+
+
+bool Storage::loadFiles(
+    Ledger& ledger,
+    const std::filesystem::path& directory
+) {
+    std::ifstream file(	directory / "children.csv");
     Ledger temporaryLedger;
     if (!file.is_open()) {
     // A new installation has no existing financial records.
     // Missing children.csv alongside other CSV files indicates
     // an incomplete dataset, so refuse to start.
     const bool otherDataExists =
-        std::filesystem::exists("obligations.csv") ||
-        std::filesystem::exists("payments.csv") ||
-        std::filesystem::exists("refunds.csv");
+        std::filesystem::exists(directory / "obligations.csv") ||
+        std::filesystem::exists(directory / "payments.csv") ||
+        std::filesystem::exists(directory / "refunds.csv");
 
     if (otherDataExists) {
         return false;
     }
 
-    return !std::filesystem::exists("children.csv");
+    return !std::filesystem::exists(directory / "children.csv");
 }
 
 
@@ -182,7 +329,7 @@ if (commaCount != 5) {
 }
 
 // Load previously generated monthly bills.
-std::ifstream billsFile("obligations.csv");
+std::ifstream billsFile(directory /"obligations.csv");
 
 if (billsFile.is_open()) {
     std::string billLine;
@@ -255,13 +402,13 @@ if (billsFile.is_open()) {
         return false;
     }
 }
-else if (std::filesystem::exists("obligations.csv")) {
+else if (std::filesystem::exists(directory / "obligations.csv")) {
     return false;
 }
 
 
 // Restore payments after children and bills have been loaded.
-std::ifstream paymentsFile("payments.csv");
+std::ifstream paymentsFile(directory /"payments.csv");
 
 if (paymentsFile.is_open()) {
     std::string paymentLine;
@@ -352,13 +499,13 @@ if (paymentsFile.is_open()) {
         return false;
     }
 }
-else if (std::filesystem::exists("payments.csv")) {
+else if (std::filesystem::exists(directory / "payments.csv")) {
     return false;
 }
 
 
 // Restore refunds after payments so available credit can be validated.
-std::ifstream refundsFile("refunds.csv");
+std::ifstream refundsFile(directory / "refunds.csv");
 
 if (refundsFile.is_open()) {
     std::string refundLine;
@@ -446,7 +593,7 @@ if (refundsFile.is_open()) {
         return false;
     }
 }
-else if (std::filesystem::exists("refunds.csv")) {
+else if (std::filesystem::exists(directory / "refunds.csv")) {
     return false;
 }
 
