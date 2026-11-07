@@ -3,6 +3,25 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+
+
+def saved_csv(directory, filename):
+    """Find a CSV file in the latest committed snapshot."""
+    root = Path(directory)
+    current = root / ".nurseryledger" / "CURRENT"
+
+    if current.exists():
+        snapshot_name = current.read_text().strip()
+        return (
+            root / ".nurseryledger"
+            / "snapshots" / snapshot_name / filename
+        )
+
+    # Support tests using the original CSV format.
+    return root / filename
+
+
+
 # Find the compiled NurseryLedger executable.
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "build" / "nurseryledger"
@@ -51,14 +70,14 @@ def test_persistence():
         # Check the actual CSV values, not only the CLI messages.
         data = Path(directory)
         assert "101,Ahmed,2026,11,15,15000" in (
-            data / "children.csv"
+            saved_csv(directory, "children.csv")
         ).read_text()
 
         assert "101,2026,11,20,20000,cash,2026,11" in (
-            data / "payments.csv"
+            saved_csv(directory, "payments.csv")
         ).read_text()
 
-        assert len((data / "obligations.csv").read_text().splitlines()) == 2
+        assert len((saved_csv(directory, "obligations.csv")).read_text().splitlines()) == 2
 
         print("PASS: Children, bills, and payments survive restart")
 
@@ -72,7 +91,7 @@ def test_duplicate_child_id():
             "exit"
         ], directory)
 
-        csv_file = Path(directory) / "children.csv"
+        csv_file = saved_csv(directory, "children.csv")
         rows = csv_file.read_text().splitlines()
 
         # Header + exactly one registered child.
@@ -99,7 +118,7 @@ def test_duplicate_monthly_bill():
         ], directory)
 
         rows = (
-            Path(directory) / "obligations.csv"
+            saved_csv(directory, "obligations.csv")
         ).read_text().splitlines()
 
         # One header + exactly one monthly bill.
@@ -126,7 +145,7 @@ def test_payment_without_bill():
         ], directory)
 
         rows = (
-            Path(directory) / "payments.csv"
+            saved_csv(directory, "payments.csv")
         ).read_text().splitlines()
 
         assert len(rows) == 1, (
@@ -220,7 +239,7 @@ def test_refund_exceeds_credit():
         ], directory)
 
         refund_rows = (
-            Path(directory) / "refunds.csv"
+            saved_csv(directory, "refunds.csv")
         ).read_text().splitlines()
 
         # Only 50 EUR of credit exists, so 70 EUR must be rejected.
@@ -253,7 +272,7 @@ def test_valid_refund_reduces_credit():
         )
 
         refund_rows = (
-            Path(directory) / "refunds.csv"
+            saved_csv(directory, "refunds.csv")
         ).read_text().splitlines()
 
         assert len(refund_rows) == 2, (
@@ -278,7 +297,7 @@ def test_refund_consumed_credit():
             "exit"
         ], directory)
 
-        rows = (Path(directory) / "refunds.csv").read_text().splitlines()
+        rows = (saved_csv(directory, "refunds.csv")).read_text().splitlines()
 
         assert len(rows) == 1, (
             f"Already-consumed credit was refunded: {rows}"
@@ -310,7 +329,7 @@ def test_all_records_survive_restart():
         }
 
         for filename, expected in expected_rows.items():
-            rows = (data / filename).read_text().splitlines()
+            rows = saved_csv(directory, filename).read_text().splitlines()
             assert rows.count(expected) == 1, (
                 f"{filename} lost or duplicated a record: {rows}"
             )
@@ -338,7 +357,7 @@ def test_repeated_restarts():
         ]
 
         original = {
-            name: (data / name).read_text()
+            name: saved_csv(directory , name).read_text()
             for name in files
         }
 
@@ -346,7 +365,7 @@ def test_repeated_restarts():
             run_nursery(["exit"], directory)
 
         for name in files:
-            current = (data / name).read_text()
+            current = saved_csv(directory , name).read_text()
             assert current == original[name], (
                 f"{name} changed after repeated restarts"
             )
@@ -363,7 +382,7 @@ def test_corrupted_csv_preserves_data():
             "exit"
         ], directory)
 
-        csv_file = Path(directory) / "children.csv"
+        csv_file = saved_csv(directory, "children.csv")
 
         # Simulate a corrupted record.
         corrupted = (
@@ -406,7 +425,7 @@ def test_invalid_money_input():
         ], directory)
 
         rows = (
-            Path(directory) / "payments.csv"
+            saved_csv(directory, "payments.csv")
         ).read_text().splitlines()
 
         assert len(rows) == 1, (
@@ -430,7 +449,7 @@ def test_failed_registration_preserves_data():
         ], directory)
 
         rows = (
-            Path(directory) / "children.csv"
+            saved_csv(directory, "children.csv")
         ).read_text().splitlines()
 
         assert len(rows) == 2, (

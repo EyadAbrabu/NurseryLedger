@@ -67,3 +67,7 @@ vcpkg_installed/
 Testing/
 .cache/
 /nurseryledger
+
+# NurseryLedger runtime financial data
+/*.csv
+/.nurseryledger/
