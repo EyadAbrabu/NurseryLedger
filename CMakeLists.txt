@@ -10,6 +10,7 @@ add_executable(nurseryledger
     src/Date.cpp
     src/CLI.cpp
     src/Ledger.cpp
+    src/Storage.cpp
 )
 
 target_include_directories(nurseryledger PRIVATE include)
