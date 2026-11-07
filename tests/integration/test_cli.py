@@ -116,8 +116,75 @@ def test_duplicate_monthly_bill():
 
 
 
+def test_payment_without_bill():
+    """A parent cannot pay against a bill that doesn't exist."""
+    with tempfile.TemporaryDirectory() as directory:
+        output = run_nursery([
+            "register 101 Ahmed 2026-11-15 150.00",
+            "pay 101 2026-11-20 100.00 cash 2026 11",
+            "exit"
+        ], directory)
+
+        rows = (
+            Path(directory) / "payments.csv"
+        ).read_text().splitlines()
+
+        assert len(rows) == 1, (
+            f"Payment was accepted without a bill: {rows}"
+        )
+
+        print("PASS: Payment without an existing bill rejected")
+
+
+def test_partial_payment():
+    """Paying part of a bill should leave the correct amount due."""
+    with tempfile.TemporaryDirectory() as directory:
+        run_nursery([
+            "register 101 Ahmed 2026-11-15 150.00",
+            "bill 101 2026 11",
+            "pay 101 2026-11-20 60.00 cash 2026 11",
+            "exit"
+        ], directory)
+
+        output = run_nursery([
+            "balance 101 2026 11",
+            "exit"
+        ], directory)
+
+        assert "90.00" in output, (
+            f"Expected 90.00 EUR outstanding, got:\n{output}"
+        )
+
+        print("PASS: Partial payment leaves 90.00 EUR outstanding")
+
+
+def test_overpayment_credit():
+    """Extra money should become credit, not disappear into the void."""
+    with tempfile.TemporaryDirectory() as directory:
+        run_nursery([
+            "register 101 Ahmed 2026-11-15 150.00",
+            "bill 101 2026 11",
+            "pay 101 2026-11-20 200.00 cash 2026 11",
+            "exit"
+        ], directory)
+
+        output = run_nursery([
+            "credit 101",
+            "exit"
+        ], directory)
+
+        assert "50.00" in output, (
+            f"Expected 50.00 EUR credit, got:\n{output}"
+        )
+
+        print("PASS: Overpayment creates 50.00 EUR credit")
+
+
 
 if __name__ == "__main__":
     test_persistence()
     test_duplicate_child_id()
     test_duplicate_monthly_bill()
+    test_payment_without_bill()
+    test_partial_payment()
+    test_overpayment_credit()
