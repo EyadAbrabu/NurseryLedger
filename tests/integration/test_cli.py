@@ -501,6 +501,95 @@ def test_missing_children_file_preserves_data():
 
 
 
+
+def test_snapshot_failure_recovery():
+    """Incomplete snapshots must not destroy committed financial data."""
+
+    with tempfile.TemporaryDirectory() as directory:
+        data = Path(directory)
+
+        # Start with a valid nursery and a 50 EUR credit.
+        run_nursery([
+            "register 101 Ahmed 2026-11-15 150.00",
+            "bill 101 2026 11",
+            "pay 101 2026-11-20 200.00 cash 2026 11",
+            "exit"
+        ], directory)
+
+        root = data / ".nurseryledger"
+        pointer = root / "CURRENT"
+
+        original_snapshot = pointer.read_text().strip()
+        payment_file = (
+            root / "snapshots" / original_snapshot / "payments.csv"
+        )
+        original_payment = payment_file.read_text()
+
+        assert "20000" in original_payment
+
+        # Scenario 1: An interrupted save leaves an unfinished snapshot.
+        incomplete = root / "snapshots" / "interrupted.tmp"
+        incomplete.mkdir()
+        (incomplete / "children.csv").write_text("incomplete\n")
+
+        result = run_nursery([
+            "children",
+            "credit 101",
+            "exit"
+        ], directory)
+
+        assert "Ahmed" in result
+        assert "50.00 EUR" in result
+
+        print("PASS: Incomplete uncommitted snapshot ignored")
+
+        # Scenario 2: CURRENT points to an incomplete snapshot.
+        valid_pointer = pointer.read_text()
+
+        broken = root / "snapshots" / "broken-snapshot"
+        broken.mkdir()
+        (broken / "children.csv").write_text("incomplete\n")
+
+        pointer.write_text("broken-snapshot\n")
+
+        result = subprocess.run(
+            [str(APP)],
+            input="exit\n",
+            text=True,
+            capture_output=True,
+            cwd=directory,
+            timeout=10
+        )
+
+        assert result.returncode != 0, (
+            "Application accepted an incomplete committed snapshot"
+        )
+
+        assert payment_file.read_text() == original_payment, (
+            "Previously committed payment records were modified"
+        )
+
+        print("PASS: Incomplete committed snapshot rejected")
+        print("PASS: Existing financial records preserved")
+
+        # Scenario 3: Restore CURRENT and recover the valid dataset.
+        pointer.write_text(valid_pointer)
+
+        result = run_nursery([
+            "payments 101",
+            "credit 101",
+            "exit"
+        ], directory)
+
+        assert "200.00 EUR" in result
+        assert "50.00 EUR" in result
+
+        print("PASS: Financial records recovered successfully")
+
+
+
+
+
 if __name__ == "__main__":
     test_persistence()
     test_duplicate_child_id()
@@ -518,3 +607,4 @@ if __name__ == "__main__":
     test_invalid_money_input()
     test_failed_registration_preserves_data()
     test_missing_children_file_preserves_data()
+    test_snapshot_failure_recovery()
