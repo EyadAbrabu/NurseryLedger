@@ -41,7 +41,7 @@ public:
 
 const std::vector<Refund>& getRefunds() const;
 
-
+     const std::vector<Child>& getChildren() const;
 
 
 };
