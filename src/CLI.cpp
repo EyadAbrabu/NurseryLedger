@@ -7,22 +7,39 @@
 
 CLI::CLI(Ledger& ledger) : ledger(ledger) {}
 
+
 void CLI::showHelp() const {
     std::cout
-        << "Available commands:\n"
-        << "  help      Show commands\n"
-        << "  register  Register a child\n"
-        << "  children  List children\n"
-        << "  bill      Generate monthly fee\n"
-        << "  pay       Record payment\n"
-        << "  refund    Record refund\n"
-        << "  balance   Show outstanding balance\n"
-        << "  credit    Show available credit\n"
-        << "  payments  List payments\n"
-        << "  refunds   List refunds\n"
-        << "  bills     List monthly fee obligations\n"
-        << "  exit      Quit\n";
+        << "\n============================================\n"
+        << "           AVAILABLE COMMANDS\n"
+        << "============================================\n\n"
 
+        << "CHILD MANAGEMENT\n"
+        << "  register <id> <name> <date> <fee>\n"
+        << "  children\n\n"
+
+        << "BILLING & PAYMENTS\n"
+        << "  bill     <id> <year> <month>\n"
+        << "  pay      <id> <date> <amount> <method> <year> <month>\n"
+        << "  balance  <id> <year> <month>\n"
+        << "  credit   <id>\n\n"
+
+        << "REFUNDS & HISTORY\n"
+        << "  refund   <id> <date> <amount> <method> <year> <month>\n"
+        << "  payments <id>\n"
+        << "  refunds  <id>\n"
+        << "  bills    <id>\n\n"
+
+        << "GENERAL\n"
+        << "  help     Show this menu\n"
+        << "  exit     Save and quit\n\n"
+
+        << "--------------------------------------------\n"
+        << "Date format: YYYY-MM-DD\n"
+        << "Money format: 150.00 (EUR)\n"
+        << "Payment methods: cash, bank\n"
+        << "Enrollment dates: 1st or 15th of the month\n"
+        << "--------------------------------------------\n";
 }
 
 
@@ -221,11 +238,19 @@ void CLI::executeCommand(const std::string& line) {
 }
 
 
+
 void CLI::run() {
     std::string line;
 
-    std::cout << "NurseryLedger CLI\n";
-    showHelp();
+    // A small welcome screen instead of dumping every command
+    // at startup. The user can open the full menu whenever needed.
+    std::cout
+        << "\n============================================\n"
+        << "              NURSERYLEDGER\n"
+        << "         Nursery Fee Management CLI\n"
+        << "============================================\n"
+        << "Welcome! Type 'help' to see all commands.\n"
+        << "Type 'exit' when you're done to save your data.\n\n";
 
     while (true) {
         std::cout << "nursery> ";
@@ -239,8 +264,9 @@ void CLI::run() {
         executeCommand(line);
     }
 
-    std::cout << "Goodbye.\n";
+    std::cout << "\nGoodbye! See you next time.\n";
 }
+
 
 
 bool CLI::parseMoney(const std::string& text,
