@@ -111,10 +111,21 @@ bool Storage::load(Ledger& ledger) {
     std::ifstream file("children.csv");
     Ledger temporaryLedger;
     if (!file.is_open()) {
-    // A missing file is normal on the first launch.
-    // Other file-opening errors should stop loading.
+    // A new installation has no existing financial records.
+    // Missing children.csv alongside other CSV files indicates
+    // an incomplete dataset, so refuse to start.
+    const bool otherDataExists =
+        std::filesystem::exists("obligations.csv") ||
+        std::filesystem::exists("payments.csv") ||
+        std::filesystem::exists("refunds.csv");
+
+    if (otherDataExists) {
+        return false;
+    }
+
     return !std::filesystem::exists("children.csv");
 }
+
 
     std::string line;
     std::getline(file, line); // Skip CSV header

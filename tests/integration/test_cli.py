@@ -444,6 +444,44 @@ def test_failed_registration_preserves_data():
 
 
 
+def test_missing_children_file_preserves_data():
+    """Missing children.csv must not reset existing financial records."""
+    with tempfile.TemporaryDirectory() as directory:
+        data_dir = Path(directory)
+        payments_file = data_dir / "payments.csv"
+
+        original = (
+            "child_id,year,month,day,amount_cents,"
+            "method,billing_year,billing_month\n"
+            "101,2026,11,20,15000,cash,2026,11\n"
+        )
+        payments_file.write_text(original)
+
+        result = subprocess.run(
+  	  [str(Path(__file__).resolve().parents[2] / "build" / "nurseryledger")],
+  	  input="exit\n",
+  	  text=True,
+  	  capture_output=True,
+   	  cwd=directory,
+ 	  timeout=10
+	)
+
+        assert result.returncode != 0, (
+            "Application accepted an incomplete dataset"
+        )
+
+        assert payments_file.read_text() == original, (
+            "Application modified existing financial records"
+        )
+
+        assert not (data_dir / "children.csv").exists(), (
+            "Application recreated children.csv despite failed loading"
+        )
+
+        print("PASS: Missing children.csv rejected without data loss")
+
+
+
 if __name__ == "__main__":
     test_persistence()
     test_duplicate_child_id()
@@ -460,3 +498,4 @@ if __name__ == "__main__":
     test_corrupted_csv_preserves_data()
     test_invalid_money_input()
     test_failed_registration_preserves_data()
+    test_missing_children_file_preserves_data()
