@@ -1,4 +1,4 @@
-#include <cassert>
+#include "TestCheck.hpp"
 #include "Ledger.hpp"
 
 int main() {
@@ -7,8 +7,8 @@ int main() {
     // Arrange: register a child and generate a fee
     Child ahmed{101, "Ahmed", {2026, 11, 15}, 15000};
 
-    assert(ledger.registerChild(ahmed));
-    assert(ledger.generateMonthlyFee(101, 2026, 11));
+    CHECK(ledger.registerChild(ahmed));
+    CHECK(ledger.generateMonthlyFee(101, 2026, 11));
 
     // Positive test: valid payment of 100 euros
     Payment validPayment{
@@ -20,7 +20,7 @@ int main() {
         11
     };
 
-    assert(ledger.recordPayment(validPayment));
+    CHECK(ledger.recordPayment(validPayment));
 
     // Negative test: payment with a negative amount
     Payment invalidPayment{
@@ -32,18 +32,18 @@ int main() {
         11
     };
 
-    assert(!ledger.recordPayment(invalidPayment));
+    CHECK(!ledger.recordPayment(invalidPayment));
 
     // Verify only the valid payment was stored
     const auto& payments = ledger.getPayments();
 
-    assert(payments.size() == 1);
-    assert(payments[0].amountCents == 10000);
-    assert(payments[0].childId == 101);
+    CHECK(payments.size() == 1);
+    CHECK(payments[0].amountCents == 10000);
+    CHECK(payments[0].childId == 101);
 
 
     // Partial payment: 150 euros due, 100 euros paid
-assert(ledger.getOutstandingBalance(101, 2026, 11) == 5000);
+CHECK(ledger.getOutstandingBalance(101, 2026, 11) == 5000);
 
 // Second valid payment completes the obligation
 Payment remainingPayment{
@@ -55,8 +55,8 @@ Payment remainingPayment{
     11
 };
 
-assert(ledger.recordPayment(remainingPayment));
-assert(ledger.getOutstandingBalance(101, 2026, 11) == 0);
+CHECK(ledger.recordPayment(remainingPayment));
+CHECK(ledger.getOutstandingBalance(101, 2026, 11) == 0);
 
 
 
@@ -64,20 +64,20 @@ assert(ledger.getOutstandingBalance(101, 2026, 11) == 0);
 {
     Ledger account;
 
-    assert(account.registerChild(
+    CHECK(account.registerChild(
         {303, "Test Child", {2026, 11, 1}, 15000}
     ));
 
-    assert(account.generateMonthlyFee(303, 2026, 11));
+    CHECK(account.generateMonthlyFee(303, 2026, 11));
 
     const auto before = account.getPayments().size();
 
-    assert(!account.recordPayment(
+    CHECK(!account.recordPayment(
         {303, {2026, 11, 5}, 15000,
          static_cast<PaymentMethod>(99), 2026, 11}
     ));
 
-    assert(account.getPayments().size() == before);
+    CHECK(account.getPayments().size() == before);
 }
 
 
