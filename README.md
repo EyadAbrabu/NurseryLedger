@@ -522,3 +522,12 @@ Before introducing NurseryLedger into daily operations with actual financial and
 These limitations are documented rather than hidden because I believe understanding a system's boundaries is part of responsible software engineering.
 
 **Version 1 achieves its defined functional scope while establishing a foundation for further production hardening and expansion.**
+
+
+## Automated Debug and Release verification
+
+[![C++ and CLI tests](https://github.com/EyadAbrabu/NurseryLedger/actions/workflows/tests.yml/badge.svg)](https://github.com/EyadAbrabu/NurseryLedger/actions/workflows/tests.yml)
+
+The six C++ unit-test suites use `CHECK` from `tests/TestCheck.hpp` so checks and the operations inside them remain active when `NDEBUG` is defined. Standard `assert` can remove both in Release builds.
+
+GitHub Actions builds the application, runs CTest, and runs the 17 Python CLI integration scenarios in both Debug and Release. [The first workflow run passed in both configurations](https://github.com/EyadAbrabu/NurseryLedger/actions/runs/45862804849). This verifies the covered scenarios; it does not remove the known limitations documented above.
